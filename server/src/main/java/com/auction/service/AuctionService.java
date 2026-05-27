@@ -490,26 +490,11 @@ public class AuctionService {
 
     private Auction syncAuctionTimeState(Auction auction) {
         LocalDateTime now = LocalDateTime.now();
-        AuctionStatus currentStatus = auction.getStatus();
-        AuctionStatus newStatus = currentStatus;
+        AuctionStatus newStatus = computeTimeState(auction, now);
 
-        if ((currentStatus == AuctionStatus.OPEN || currentStatus == AuctionStatus.RUNNING)
-                && !now.isBefore(auction.getEndTime())) {
-            newStatus = AuctionStatus.FINISHED;
-        } else if (currentStatus == AuctionStatus.OPEN
-                && !now.isBefore(auction.getStartTime())
-                && now.isBefore(auction.getEndTime())) {
-            newStatus = AuctionStatus.RUNNING;
-        } else if (currentStatus == AuctionStatus.FINISHED
-                && auction.getCurrentWinnerId() == null
-                && now.isAfter(auction.getEndTime().plusSeconds(EMPTY_AUCTION_CANCEL_DELAY_SECONDS))) {
-            newStatus = AuctionStatus.CANCELED;
-        }
-
-        if (newStatus != currentStatus) {
+        if (newStatus != auction.getStatus()) {
             auction.setStatus(newStatus);
-            auctionDAO.updateStatus(auction.getId(), newStatus);
-            auctionManager.addAuction(auction);
+            // Read-only sync: chỉ cập nhật object, KHÔNG ghi DB
         }
 
         return auction;
@@ -517,29 +502,44 @@ public class AuctionService {
 
     private Auction syncAuctionTimeState(Connection conn, Auction auction) throws SQLException {
         LocalDateTime now = LocalDateTime.now();
-        AuctionStatus currentStatus = auction.getStatus();
-        AuctionStatus newStatus = currentStatus;
+        AuctionStatus newStatus = computeTimeState(auction, now);
 
-        if ((currentStatus == AuctionStatus.OPEN || currentStatus == AuctionStatus.RUNNING)
-                && !now.isBefore(auction.getEndTime())) {
-            newStatus = AuctionStatus.FINISHED;
-        } else if (currentStatus == AuctionStatus.OPEN
-                && !now.isBefore(auction.getStartTime())
-                && now.isBefore(auction.getEndTime())) {
-            newStatus = AuctionStatus.RUNNING;
-        } else if (currentStatus == AuctionStatus.FINISHED
-                && auction.getCurrentWinnerId() == null
-                && now.isAfter(auction.getEndTime().plusSeconds(EMPTY_AUCTION_CANCEL_DELAY_SECONDS))) {
-            newStatus = AuctionStatus.CANCELED;
-        }
-
-        if (newStatus != currentStatus) {
+        if (newStatus != auction.getStatus()) {
             auction.setStatus(newStatus);
             auctionDAO.updateStatus(conn, auction.getId(), newStatus);
             auctionManager.addAuction(auction);
         }
 
         return auction;
+    }
+
+    /**
+     * Tính trạng thái auction theo thời gian (không ghi DB).
+     * Hỗ trợ chuyển 2 bước trong 1 lần: OPEN/RUNNING → FINISHED → CANCELED.
+     */
+    private AuctionStatus computeTimeState(Auction auction, LocalDateTime now) {
+        AuctionStatus status = auction.getStatus();
+
+        // Bước 1: Nếu đang mở/chạy mà đã hết giờ → FINISHED
+        if ((status == AuctionStatus.OPEN || status == AuctionStatus.RUNNING)
+                && !now.isBefore(auction.getEndTime())) {
+            status = AuctionStatus.FINISHED;
+        } else if (status == AuctionStatus.OPEN
+                && !now.isBefore(auction.getStartTime())
+                && now.isBefore(auction.getEndTime())) {
+            // OPEN → RUNNING khi đến giờ bắt đầu
+            return AuctionStatus.RUNNING;
+        }
+
+        // Bước 2: Nếu FINISHED mà không có winner và đã qua delay → CANCELED
+        // (áp dụng ngay cả khi vừa chuyển từ OPEN/RUNNING ở bước 1)
+        if (status == AuctionStatus.FINISHED
+                && auction.getCurrentWinnerId() == null
+                && now.isAfter(auction.getEndTime().plusSeconds(EMPTY_AUCTION_CANCEL_DELAY_SECONDS))) {
+            return AuctionStatus.CANCELED;
+        }
+
+        return status;
     }
 
     private void rollbackQuietly(Connection conn) {
