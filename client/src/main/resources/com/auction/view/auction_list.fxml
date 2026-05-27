@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.auction.controller.AuctionListController"
+      spacing="0"
+      maxWidth="Infinity" maxHeight="Infinity"
+      style="-fx-background-color: #f0f4f8;">
+
+    <!-- Thanh header -->
+    <HBox style="-fx-background-color: #2c3e50; -fx-padding: 12 26;"
+          alignment="CENTER_LEFT" spacing="12">
+        <Label text="Auction System"
+               style="-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="welcomeLabel"
+               style="-fx-text-fill: #ecf0f1; -fx-font-size: 13px;"/>
+        <Button fx:id="sellerPanelButton" text="Quan ly san pham"
+                onAction="#handleSellerPanel"
+                style="-fx-background-color: #f39c12; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Button fx:id="adminPanelButton" text="Admin"
+                onAction="#handleAdminPanel"
+                visible="false" managed="false"
+                style="-fx-background-color: #8e44ad; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Button fx:id="logoutButton" text="Dang xuat"
+                onAction="#handleLogout"
+                style="-fx-background-color: #e74c3c; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-background-radius: 4; -fx-cursor: hand;"/>
+    </HBox>
+
+    <!-- Thanh filter + refresh -->
+    <HBox style="-fx-background-color: white; -fx-padding: 10 26;
+                 -fx-border-color: #ddd; -fx-border-width: 0 0 1 0;"
+          alignment="CENTER_LEFT" spacing="12">
+        <Label text="Loc trang thai:"
+               style="-fx-font-weight: bold; -fx-text-fill: #34495e;"/>
+        <ComboBox fx:id="statusFilterCombo" prefWidth="130"/>
+        <Label text="Loc loai:"
+               style="-fx-font-weight: bold; -fx-text-fill: #34495e;"/>
+        <ComboBox fx:id="typeFilterCombo" prefWidth="130"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="statusLabel"
+               style="-fx-text-fill: #7f8c8d; -fx-font-size: 12px;"/>
+        <Button fx:id="refreshButton" text="Lam moi"
+                onAction="#handleRefresh"
+                style="-fx-background-color: #3498db; -fx-text-fill: white;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+    </HBox>
+
+    <!-- Bang danh sach phien -->
+    <TableView fx:id="auctionTable" VBox.vgrow="ALWAYS"
+               style="-fx-border-color: transparent;">
+        <columns>
+            <TableColumn fx:id="colId"           text="Ma phien"     prefWidth="220" minWidth="160"/>
+            <TableColumn fx:id="colItemType"     text="Loai"         prefWidth="120" minWidth="95"/>
+            <TableColumn fx:id="colItemName"     text="San pham"     prefWidth="260" minWidth="180"/>
+            <TableColumn fx:id="colCurrentPrice" text="Gia hien tai" prefWidth="150" minWidth="120"/>
+            <TableColumn fx:id="colStatus"       text="Trang thai"   prefWidth="125" minWidth="105"/>
+            <TableColumn fx:id="colEndTime"      text="Ket thuc luc" prefWidth="165" minWidth="130"/>
+            <TableColumn fx:id="colSeller"       text="Nguoi ban"    prefWidth="170" minWidth="130"/>
+        </columns>
+    </TableView>
+
+    <!-- Thanh duoi: nut tham gia -->
+    <HBox style="-fx-background-color: white; -fx-padding: 10 26;
+                 -fx-border-color: #ddd; -fx-border-width: 1 0 0 0;"
+          alignment="CENTER_RIGHT" spacing="10">
+        <Label text="Chon phien roi nhan:"
+               style="-fx-text-fill: #7f8c8d; -fx-font-size: 12px;"/>
+        <Button fx:id="cancelAuctionButton" text="Huy phien"
+                onAction="#handleCancelAuction"
+                style="-fx-background-color: #c0392b; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-height: 34px;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Button fx:id="deleteAuctionButton" text="Xoa phien"
+                onAction="#handleDeleteAuction"
+                style="-fx-background-color: #7f8c8d; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-height: 34px;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Button fx:id="markPaidButton" text="Da thanh toan"
+                onAction="#handleMarkPaid"
+                style="-fx-background-color: #2980b9; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-height: 34px;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Button fx:id="joinButton" text="Tham gia dau gia"
+                onAction="#handleJoin"
+                style="-fx-background-color: #27ae60; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-height: 34px;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+    </HBox>
+
+</VBox>

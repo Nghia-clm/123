@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.auction.controller.AdminController"
+      spacing="0"
+      style="-fx-background-color: #f0f4f8;">
+
+    <HBox style="-fx-background-color: #2c3e50; -fx-padding: 12 20;"
+          alignment="CENTER_LEFT" spacing="12">
+        <Button fx:id="backButton" text="Quay lai"
+                onAction="#handleBack"
+                style="-fx-background-color: #7f8c8d; -fx-text-fill: white;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Label text="Admin - Quan ly nguoi dung"
+               style="-fx-text-fill: white; -fx-font-size: 17px; -fx-font-weight: bold;"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="refreshButton" text="Lam moi"
+                onAction="#handleRefresh"
+                style="-fx-background-color: #3498db; -fx-text-fill: white;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+    </HBox>
+
+    <HBox style="-fx-background-color: white; -fx-padding: 10 20;
+                 -fx-border-color: #ddd; -fx-border-width: 0 0 1 0;"
+          alignment="CENTER_LEFT" spacing="10">
+        <Label text="DANH SACH NGUOI DUNG"
+               style="-fx-font-weight: bold; -fx-text-fill: #7f8c8d; -fx-font-size: 11px;"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="statusLabel"
+               style="-fx-text-fill: #7f8c8d; -fx-font-size: 12px;"/>
+    </HBox>
+
+    <TableView fx:id="userTable" VBox.vgrow="ALWAYS">
+        <columns>
+            <TableColumn fx:id="colUserId"   text="ID"       prefWidth="280"/>
+            <TableColumn fx:id="colUsername" text="Username" prefWidth="180"/>
+            <TableColumn fx:id="colRole"     text="Role"     prefWidth="120"/>
+            <TableColumn fx:id="colEmail"    text="Email"    prefWidth="280"/>
+            <TableColumn fx:id="colStatus"   text="Status"   prefWidth="120"/>
+        </columns>
+    </TableView>
+
+    <HBox style="-fx-background-color: white; -fx-padding: 10 20;
+                 -fx-border-color: #ddd; -fx-border-width: 1 0 0 0;"
+          alignment="CENTER_RIGHT" spacing="10">
+        <Label text="Chon user roi nhan:"
+               style="-fx-text-fill: #7f8c8d; -fx-font-size: 12px;"/>
+        <Button fx:id="banUserButton" text="Ban user"
+                onAction="#handleBanUser"
+                style="-fx-background-color: #c0392b; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-height: 34px;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+        <Button fx:id="unbanUserButton" text="Unban user"
+                onAction="#handleUnbanUser"
+                style="-fx-background-color: #27ae60; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-height: 34px;
+                       -fx-background-radius: 4; -fx-cursor: hand;"/>
+    </HBox>
+</VBox>
