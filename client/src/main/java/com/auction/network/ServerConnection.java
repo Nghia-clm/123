@@ -17,13 +17,14 @@ import java.util.logging.Logger;
  * FIX: Dùng một listener thread DUY NHẤT đọc tất cả message từ server.
  * - Nếu là broadcast (có "event") → gọi broadcastHandler
  * - Nếu là response (có "status") → đưa vào responseQueue
- * sendRequest() chỉ việc poll từ responseQueue → không còn race condition.
+ * sendRequest() được serialize để mỗi thời điểm chỉ có một request chờ response.
+ * Vì giao thức hiện chưa có requestId, không được để nhiều request pending cùng lúc.
  */
 public class ServerConnection {
  
     private static final Logger LOGGER = Logger.getLogger(ServerConnection.class.getName());
  
-    private static final String HOST            = "localhost";
+    private static final String HOST = System.getProperty("server.host", "localhost");
     private static final int    PORT            = 9999;
     private static final int    TIMEOUT_SECONDS = 10; // timeout chờ response
  
@@ -50,6 +51,12 @@ public class ServerConnection {
      * sendRequest() gửi rồi poll queue này — listener thread đẩy vào.
      */
     private final BlockingQueue<JSONObject> responseQueue = new LinkedBlockingQueue<>();
+
+    /**
+     * Giao thức hiện không có requestId/correlationId. Lock này đảm bảo request A
+     * luôn nhận đúng response A bằng cách chỉ cho một request pending tại một thời điểm.
+     */
+    private final Object requestLock = new Object();
  
     /** Callback nhận broadcast (NEW_BID, AUCTION_FINISHED, AUCTION_EXTENDED...) */
     private Consumer<JSONObject> broadcastHandler;
@@ -94,33 +101,36 @@ public class ServerConnection {
      * Listener thread là nơi duy nhất đọc reader.
      */
     public JSONObject sendRequest(String action, JSONObject data) {
-        if (!connected) return errorJson("Chưa kết nối tới server");
- 
-        try {
-            // 1. Build và gửi request
-            JSONObject request = new JSONObject();
-            request.put("action", action);
-            request.put("data", data != null ? data : new JSONObject());
- 
-            synchronized (writer) {
+        synchronized (requestLock) {
+            if (!connected) return errorJson("Chưa kết nối tới server");
+
+            try {
+                // Loại bỏ response cũ còn sót lại sau timeout/disconnect trước đó.
+                responseQueue.clear();
+
+                // 1. Build và gửi request
+                JSONObject request = new JSONObject();
+                request.put("action", action);
+                request.put("data", data != null ? data : new JSONObject());
+
                 writer.println(request.toString());
+
+                // 2. Chờ response từ queue (listener thread sẽ đẩy vào)
+                JSONObject response = responseQueue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                if (response == null) {
+                    LOGGER.warning("Timeout waiting for response to action: " + action);
+                    return errorJson("Server không phản hồi. Vui lòng thử lại.");
+                }
+                return response;
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return errorJson("Request bị gián đoạn.");
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Request failed: " + action, e);
+                connected = false;
+                return errorJson("Lỗi mạng: " + e.getMessage());
             }
- 
-            // 2. Chờ response từ queue (listener thread sẽ đẩy vào)
-            JSONObject response = responseQueue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            if (response == null) {
-                LOGGER.warning("Timeout waiting for response to action: " + action);
-                return errorJson("Server không phản hồi. Vui lòng thử lại.");
-            }
-            return response;
- 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return errorJson("Request bị gián đoạn.");
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Request failed: " + action, e);
-            connected = false;
-            return errorJson("Lỗi mạng: " + e.getMessage());
         }
     }
  

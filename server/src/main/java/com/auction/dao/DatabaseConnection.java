@@ -1,23 +1,13 @@
 package com.auction.dao;
  
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
  
-/**
- * DatabaseConnection - Singleton quản lý kết nối JDBC thread-safe.
- *
- * Dùng synchronized để đảm bảo mỗi lúc chỉ 1 thread dùng connection.
- * Tự động reconnect nếu connection bị đóng.
- *
- * Cách dùng trong DAO:
- *   synchronized (DatabaseConnection.getInstance()) {
- *       Connection conn = DatabaseConnection.getInstance().getConnection();
- *       ...
- *   }
- */
 public class DatabaseConnection {
  
     private static final Logger LOGGER = Logger.getLogger(DatabaseConnection.class.getName());
@@ -26,14 +16,14 @@ public class DatabaseConnection {
                                          + "?useSSL=false&serverTimezone=UTC"
                                          + "&allowPublicKeyRetrieval=true";
     private static final String USER     = "root";
-    private static final String PASSWORD = "n05122007"; // đổi theo máy của bạn
+    private static final String PASSWORD = "n05122007"; // đổi theo mật khẩu MySQL trên máy chạy
  
-    // ── Singleton ──────────────────────────────────────────────────────────
+    // Singleton
     private static volatile DatabaseConnection instance;
-    private Connection connection;
+    private final HikariDataSource dataSource;
  
     private DatabaseConnection() {
-        connect();
+        dataSource = createDataSource();
     }
  
     public static DatabaseConnection getInstance() {
@@ -47,53 +37,39 @@ public class DatabaseConnection {
         return instance;
     }
  
-    // ── Connection ─────────────────────────────────────────────────────────
- 
-    private void connect() {
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            connection = DriverManager.getConnection(URL, USER, PASSWORD);
-            LOGGER.info("Database connected successfully.");
-        } catch (ClassNotFoundException e) {
-            LOGGER.log(Level.SEVERE, "MySQL Driver not found", e);
-            throw new RuntimeException("MySQL Driver not found", e);
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Cannot connect to database", e);
-            throw new RuntimeException("Cannot connect to database", e);
-        }
+    private HikariDataSource createDataSource() {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(URL);
+        config.setUsername(USER);
+        config.setPassword(PASSWORD);
+        config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        config.setMaximumPoolSize(20);
+        config.setMinimumIdle(5);
+        config.setConnectionTimeout(30_000);
+        config.setIdleTimeout(600_000);
+        config.setMaxLifetime(1_800_000);
+        config.setPoolName("AuctionSystemPool");
+
+        LOGGER.info("Database connection pool initialized.");
+        return new HikariDataSource(config);
     }
- 
-    /**
-     * Lấy connection.
-     * Luôn gọi trong khối synchronized để thread-safe:
-     *
-     *   synchronized (DatabaseConnection.getInstance()) {
-     *       Connection conn = DatabaseConnection.getInstance().getConnection();
-     *       ...
-     *   }
-     */
-    public synchronized Connection getConnection() {
-        try {
-            // Tự động reconnect nếu connection bị đóng hoặc timeout
-            if (connection == null || connection.isClosed() || !connection.isValid(2)) {
-                LOGGER.info("Connection lost — reconnecting...");
-                connect();
-            }
-        } catch (SQLException e) {
-            LOGGER.log(Level.WARNING, "Error checking connection, reconnecting...", e);
-            connect();
-        }
-        return connection;
+
+    public static Connection getConnection() throws SQLException {
+        return getInstance().dataSource.getConnection();
     }
- 
-    public synchronized void closeConnection() {
+
+    public HikariDataSource getDataSource() {
+        return dataSource;
+    }
+
+    public void closeConnection() {
         try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                LOGGER.info("Database connection closed.");
+            if (dataSource != null && !dataSource.isClosed()) {
+                dataSource.close();
+                LOGGER.info("Database connection pool closed.");
             }
-        } catch (SQLException e) {
-            LOGGER.log(Level.WARNING, "Error closing connection", e);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error closing connection pool", e);
         }
     }
 }

@@ -108,13 +108,12 @@ public class BidHistoryVisualizer implements BidObserver {
     // ── BidObserver callbacks ──────────────────────────────────────────────
 
     /**
-     * Gọi từ Auction.notifyObservers() ngay sau mỗi bid thành công.
-     * Thêm điểm mới vào biểu đồ realtime.
+     * Callback tối giản cho observer cũ. AuctionService gọi thêm onNewBid()
+     * với BidTransaction đầy đủ, nên không ghi dữ liệu ở đây để tránh trùng điểm.
      */
     @Override
     public void onBidUpdated(String auctionId, double newPrice, String leadingBidderId) {
-        addPoint(auctionId, newPrice, leadingBidderId, LocalDateTime.now());
-        LOGGER.fine(String.format("[Visualizer] New point: auction=%s price=%.0f", auctionId, newPrice));
+        // no-op: onNewBid() có timestamp chính xác từ BidTransaction.
     }
 
     /**
@@ -124,6 +123,8 @@ public class BidHistoryVisualizer implements BidObserver {
     @Override
     public void onNewBid(com.auction.model.Auction auction, BidTransaction tx) {
         addPoint(auction.getId(), tx.getAmount(), tx.getBidderId(), tx.getBidTime());
+        LOGGER.fine(String.format("[Visualizer] New point: auction=%s price=%.0f",
+                auction.getId(), tx.getAmount()));
     }
 
     // ── Public API ─────────────────────────────────────────────────────────

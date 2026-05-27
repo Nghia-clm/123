@@ -16,65 +16,108 @@ public class BidTransactionDAO {
 
     private static final Logger LOGGER = Logger.getLogger(BidTransactionDAO.class.getName());
 
-    private Connection getConn() {
-        return DatabaseConnection.getInstance().getConnection();
-    }
-
     // ── CREATE ────────────────────────────────────────────────────────────
 
     public boolean insert(BidTransaction tx) {
-        String sql = "INSERT INTO bid_transactions (transaction_id, auction_id, bidder_id, bid_amount, bid_time) VALUES (?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
-            ps.setString(1, tx.getId());
-            ps.setString(2, tx.getAuctionId());
-            ps.setString(3, tx.getBidderId());
-            ps.setDouble(4, tx.getBidAmount());
-            ps.setTimestamp(5, Timestamp.valueOf(tx.getTimestamp()));
-            return ps.executeUpdate() > 0;
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return insert(conn, tx);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Insert BidTransaction failed", e);
             return false;
         }
     }
 
+    public boolean insert(Connection conn, BidTransaction tx) throws SQLException {
+        String sql = "INSERT INTO bid_transactions (transaction_id, auction_id, bidder_id, bid_amount, bid_time, is_auto_bid) VALUES (?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, tx.getId());
+            ps.setString(2, tx.getAuctionId());
+            ps.setString(3, tx.getBidderId());
+            ps.setDouble(4, tx.getBidAmount());
+            ps.setTimestamp(5, Timestamp.valueOf(tx.getTimestamp()));
+            ps.setBoolean(6, tx.isAutoBid());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     // ── READ ──────────────────────────────────────────────────────────────
 
     public List<BidTransaction> findByAuction(String auctionId) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return findByAuction(conn, auctionId);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "findByAuction failed: " + auctionId, e);
+            return new ArrayList<>();
+        }
+    }
+
+    public List<BidTransaction> findByAuction(Connection conn, String auctionId) throws SQLException {
         List<BidTransaction> list = new ArrayList<>();
         String sql = "SELECT * FROM bid_transactions WHERE auction_id = ? ORDER BY bid_time ASC";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, auctionId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) list.add(mapRow(rs));
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "findByAuction failed: " + auctionId, e);
         }
         return list;
     }
 
     public List<BidTransaction> findByBidder(String bidderId) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return findByBidder(conn, bidderId);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "findByBidder failed: " + bidderId, e);
+            return new ArrayList<>();
+        }
+    }
+
+    public List<BidTransaction> findByBidder(Connection conn, String bidderId) throws SQLException {
         List<BidTransaction> list = new ArrayList<>();
         String sql = "SELECT * FROM bid_transactions WHERE bidder_id = ? ORDER BY bid_time DESC";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, bidderId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) list.add(mapRow(rs));
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "findByBidder failed: " + bidderId, e);
         }
         return list;
     }
 
     public BidTransaction findHighestBid(String auctionId) {
-        String sql = "SELECT * FROM bid_transactions WHERE auction_id = ? ORDER BY bid_amount DESC LIMIT 1";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
-            ps.setString(1, auctionId);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapRow(rs);
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return findHighestBid(conn, auctionId);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "findHighestBid failed: " + auctionId, e);
         }
         return null;
+    }
+
+    public BidTransaction findHighestBid(Connection conn, String auctionId) throws SQLException {
+        String sql = "SELECT * FROM bid_transactions WHERE auction_id = ? ORDER BY bid_amount DESC LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, auctionId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        }
+        return null;
+    }
+
+    public boolean hasBids(String auctionId) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return hasBids(conn, auctionId);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "hasBids failed: " + auctionId, e);
+            return true;
+        }
+    }
+
+    public boolean hasBids(Connection conn, String auctionId) throws SQLException {
+        String sql = "SELECT 1 FROM bid_transactions WHERE auction_id = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, auctionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     // ── HELPER ────────────────────────────────────────────────────────────
@@ -85,6 +128,8 @@ public class BidTransactionDAO {
         String bidderId  = rs.getString("bidder_id");
         double amount    = rs.getDouble("bid_amount");
         LocalDateTime ts = rs.getTimestamp("bid_time").toLocalDateTime();
-        return new BidTransaction(id, auctionId, bidderId, amount, ts);
+        BidTransaction tx = new BidTransaction(id, auctionId, bidderId, amount, ts);
+        tx.setAutoBid(rs.getBoolean("is_auto_bid"));
+        return tx;
     }
 }

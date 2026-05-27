@@ -1,14 +1,9 @@
 package com.auction.model;
 
-import com.auction.exception.AuctionClosedException;
-import com.auction.exception.InvalidBidException;
 import com.auction.model.item.Item;
 import com.auction.model.user.User;
-import com.auction.observer.BidObserver;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Auction {
     private String id;
@@ -21,7 +16,6 @@ public class Auction {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private AuctionStatus status;
-    private List<BidObserver> observers = new ArrayList<>();
 
     public Auction() {}
 
@@ -44,39 +38,7 @@ public class Auction {
         this(id, item, null, startingPrice, startTime, endTime);
     }
 
-    // ── Observer ──────────────────────────────────────────────
-    public void addObserver(BidObserver observer) {
-        observers.add(observer);
-    }
-
-    public void removeObserver(BidObserver observer) {
-        observers.remove(observer);
-    }
-
-    private void notifyObservers() {
-        for (BidObserver obs : observers) {
-            obs.onBidUpdated(id, currentPrice, currentWinnerId);
-        }
-    }
-
-    // ── Core logic ────────────────────────────────────────────
-    public synchronized boolean placeBid(String bidderId, double amount) throws AuctionClosedException, InvalidBidException {
-        if (status != AuctionStatus.RUNNING) {
-            throw new AuctionClosedException("Phiên đấu giá chưa mở hoặc đã đóng!");
-        }
-        if (amount <= currentPrice) {
-            throw new InvalidBidException(
-                "Giá đặt (" + amount + ") phải cao hơn giá hiện tại (" + currentPrice + ")");
-        }
-        if (bidderId.equals(currentWinnerId)) {
-            throw new InvalidBidException("Bạn đang dẫn đầu, không cần đặt lại!");
-        }
-        this.currentPrice    = amount;
-        this.currentWinnerId = bidderId;
-        notifyObservers();
-        return true;
-    }
-
+    // ── State transitions ─────────────────────────────────────
     public synchronized void start() {
         if (status != AuctionStatus.OPEN) {
             throw new IllegalStateException("Chỉ bắt đầu được khi trạng thái là OPEN");
@@ -86,15 +48,11 @@ public class Auction {
 
     public synchronized void finish() {
         if (status != AuctionStatus.RUNNING) return;
-        this.status = (currentWinnerId == null)
-                      ? AuctionStatus.CANCELED
-                      : AuctionStatus.FINISHED;
-        notifyObservers();
+        this.status = AuctionStatus.FINISHED;
     }
 
     public synchronized void cancel() {
         this.status = AuctionStatus.CANCELED;
-        notifyObservers();
     }
 
     public synchronized void markPaid() {

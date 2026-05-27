@@ -1,8 +1,4 @@
--- =============================================================
---  AuctionSystem - Database Schema
---  MySQL 8.x
---  Chạy: mysql -u root -p auction_db < schema.sql
--- =============================================================
+--  Chạy: mysql -u root -p auction_db
 
 CREATE DATABASE IF NOT EXISTS auction_db
     CHARACTER SET utf8mb4
@@ -10,9 +6,8 @@ CREATE DATABASE IF NOT EXISTS auction_db
 
 USE auction_db;
 
--- =============================================================
 --  1. USERS
--- =============================================================
+
 CREATE TABLE IF NOT EXISTS users (
     user_id     VARCHAR(36)  NOT NULL,
     username    VARCHAR(50)  NOT NULL,
@@ -29,9 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY uq_email    (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- =============================================================
 --  2. ITEMS
--- =============================================================
+
 CREATE TABLE IF NOT EXISTS items (
     item_id         VARCHAR(36)   NOT NULL,
     seller_id       VARCHAR(36)   NOT NULL,
@@ -54,9 +48,8 @@ CREATE INDEX idx_items_seller ON items(seller_id);
 -- Index tìm kiếm theo type
 CREATE INDEX idx_items_type   ON items(type);
 
--- =============================================================
 --  3. AUCTIONS
--- =============================================================
+
 CREATE TABLE IF NOT EXISTS auctions (
     auction_id      VARCHAR(36)   NOT NULL,
     item_id         VARCHAR(36)   NOT NULL,
@@ -74,7 +67,7 @@ CREATE TABLE IF NOT EXISTS auctions (
 
     PRIMARY KEY (auction_id),
     CONSTRAINT fk_auctions_item
-        FOREIGN KEY (item_id)    REFERENCES items(item_id)   ON DELETE CASCADE,
+        FOREIGN KEY (item_id)    REFERENCES items(item_id)   ON DELETE RESTRICT,
     CONSTRAINT fk_auctions_seller
         FOREIGN KEY (seller_id)  REFERENCES users(user_id)   ON DELETE CASCADE,
     CONSTRAINT fk_auctions_winner
@@ -88,9 +81,8 @@ CREATE INDEX idx_auctions_status     ON auctions(status);
 CREATE INDEX idx_auctions_seller     ON auctions(seller_id);
 CREATE INDEX idx_auctions_end_time   ON auctions(end_time);
 
--- =============================================================
 --  4. BID_TRANSACTIONS
--- =============================================================
+
 CREATE TABLE IF NOT EXISTS bid_transactions (
     transaction_id  VARCHAR(36)   NOT NULL,
     auction_id      VARCHAR(36)   NOT NULL,

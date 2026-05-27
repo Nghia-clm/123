@@ -19,7 +19,7 @@ public class ItemFactory {
     /**
      * Tạo Item theo loại, gán id ngay trong constructor.
      *
-     * @param id            ID duy nhất của item (thường là UUID)
+     * @param id            ID duy nhất của item (UUID)
      * @param type          "ELECTRONICS" | "ART" | "VEHICLE"  (case-insensitive)
      * @param name          tên sản phẩm
      * @param description   mô tả
@@ -31,7 +31,7 @@ public class ItemFactory {
                                    String name, String description,
                                    double startingPrice) {
         if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException("Item type cannot be null or empty");
+            throw new IllegalArgumentException("Loại mục không được phép là null hoặc rỗng.");
         }
 
         return switch (type.toUpperCase()) {

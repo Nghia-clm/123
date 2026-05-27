@@ -18,15 +18,20 @@ public class UserDAO {
 
     private static final Logger LOGGER = Logger.getLogger(UserDAO.class.getName());
 
-    private Connection getConn() {
-        return DatabaseConnection.getInstance().getConnection();
-    }
-
     // ── CREATE ────────────────────────────────────────────────────────────
 
     public boolean insert(User user) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return insert(conn, user);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Insert user failed: " + user.getUsername(), e);
+            return false;
+        }
+    }
+
+    public boolean insert(Connection conn, User user) throws SQLException {
         String sql = "INSERT INTO users (user_id, username, password, email, role, is_banned) VALUES (?, ?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getId());
             ps.setString(2, user.getUsername());
             ps.setString(3, user.getPassword());
@@ -34,34 +39,45 @@ public class UserDAO {
             ps.setString(5, user.getRole());
             ps.setBoolean(6, false);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Insert user failed: " + user.getUsername(), e);
-            return false;
         }
     }
 
     // ── READ ──────────────────────────────────────────────────────────────
 
     public User findById(String userId) {
-        String sql = "SELECT * FROM users WHERE user_id = ?";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
-            ps.setString(1, userId);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapRow(rs);
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return findById(conn, userId);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "findById failed: " + userId, e);
         }
         return null;
     }
 
+    public User findById(Connection conn, String userId) throws SQLException {
+        String sql = "SELECT * FROM users WHERE user_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, userId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        }
+        return null;
+    }
+
     public User findByUsername(String username) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return findByUsername(conn, username);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "findByUsername failed: " + username, e);
+        }
+        return null;
+    }
+
+    public User findByUsername(Connection conn, String username) throws SQLException {
         String sql = "SELECT * FROM users WHERE username = ?";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return mapRow(rs);
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "findByUsername failed: " + username, e);
         }
         return null;
     }
@@ -69,7 +85,8 @@ public class UserDAO {
     public List<User> findAll() {
         List<User> users = new ArrayList<>();
         String sql = "SELECT * FROM users";
-        try (Statement st = getConn().createStatement();
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) users.add(mapRow(rs));
         } catch (SQLException e) {
@@ -81,39 +98,57 @@ public class UserDAO {
     // ── UPDATE ────────────────────────────────────────────────────────────
 
     public boolean updateBanStatus(String userId, boolean isBanned) {
-        String sql = "UPDATE users SET is_banned = ? WHERE user_id = ?";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
-            ps.setBoolean(1, isBanned);
-            ps.setString(2, userId);
-            return ps.executeUpdate() > 0;
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return updateBanStatus(conn, userId, isBanned);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "updateBanStatus failed: " + userId, e);
             return false;
         }
     }
 
-    public boolean updatePassword(String userId, String newHashedPassword) {
-        String sql = "UPDATE users SET password = ? WHERE user_id = ?";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
-            ps.setString(1, newHashedPassword);
+    public boolean updateBanStatus(Connection conn, String userId, boolean isBanned) throws SQLException {
+        String sql = "UPDATE users SET is_banned = ? WHERE user_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBoolean(1, isBanned);
             ps.setString(2, userId);
             return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean updatePassword(String userId, String newHashedPassword) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return updatePassword(conn, userId, newHashedPassword);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "updatePassword failed: " + userId, e);
             return false;
         }
     }
 
+    public boolean updatePassword(Connection conn, String userId, String newHashedPassword) throws SQLException {
+        String sql = "UPDATE users SET password = ? WHERE user_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newHashedPassword);
+            ps.setString(2, userId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     // ── DELETE ────────────────────────────────────────────────────────────
 
     public boolean delete(String userId) {
-        String sql = "DELETE FROM users WHERE user_id = ?";
-        try (PreparedStatement ps = getConn().prepareStatement(sql)) {
-            ps.setString(1, userId);
-            return ps.executeUpdate() > 0;
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return delete(conn, userId);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "delete user failed: " + userId, e);
             return false;
+        }
+    }
+
+    public boolean delete(Connection conn, String userId) throws SQLException {
+        String sql = "DELETE FROM users WHERE user_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, userId);
+            return ps.executeUpdate() > 0;
         }
     }
 

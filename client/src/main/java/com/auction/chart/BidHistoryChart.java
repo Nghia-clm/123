@@ -48,8 +48,13 @@ public class BidHistoryChart {
         // ── Trục X: thời gian (giây) ──
         xAxis = new NumberAxis();
         xAxis.setLabel("Thời gian (giây)");
-        xAxis.setAutoRanging(true);
+        xAxis.setAutoRanging(false);
+        xAxis.setLowerBound(0);
+        xAxis.setUpperBound(60);
+        xAxis.setTickUnit(15);
         xAxis.setForceZeroInRange(false);
+        xAxis.setMinorTickVisible(false);
+        xAxis.setTickLabelRotation(-35);
         xAxis.setTickLabelFormatter(new javafx.util.StringConverter<Number>() {
             @Override public String toString(Number n) {
                 long s = n.longValue();
@@ -84,10 +89,14 @@ public class BidHistoryChart {
         lineChart.setAnimated(false);        // Tắt animation để update nhanh
         lineChart.setCreateSymbols(true);    // Hiện chấm tròn tại mỗi điểm bid
         lineChart.setLegendVisible(false);
+        lineChart.setHorizontalGridLinesVisible(true);
+        lineChart.setVerticalGridLinesVisible(true);
         lineChart.getData().add(series);
 
         // Style
         lineChart.setStyle("-fx-background-color: transparent;");
+        lineChart.setMinHeight(220);
+        lineChart.setMaxWidth(Double.MAX_VALUE);
         lineChart.lookup(".chart-plot-background")
                  .setStyle("-fx-background-color: #fafafa;");
 
@@ -136,6 +145,7 @@ public class BidHistoryChart {
             series.getData().clear();
             firstBidTime = null;
             bidCount.set(0);
+            resetXAxisBounds();
         });
     }
 
@@ -150,6 +160,7 @@ public class BidHistoryChart {
             series.getData().clear();
             firstBidTime = null;
             bidCount.set(0);
+            resetXAxisBounds();
             // Sắp xếp tăng dần theo thời gian trước khi vẽ
             bids.stream()
                 .sorted(java.util.Comparator.comparing(BidPoint::getTime))
@@ -164,9 +175,35 @@ public class BidHistoryChart {
             new XYChart.Data<>(xSeconds, yAmount);
         series.getData().add(dataPoint);
         bidCount.incrementAndGet();
+        updateXAxisBounds(xSeconds);
 
         // Tooltip hiện khi hover vào chấm
         installTooltip(dataPoint, xSeconds, yAmount);
+    }
+
+    private void updateXAxisBounds(long xSeconds) {
+        long upper = Math.max(60, roundUp(xSeconds + 10, 10));
+        xAxis.setLowerBound(0);
+        xAxis.setUpperBound(upper);
+        xAxis.setTickUnit(chooseTickUnit(upper));
+    }
+
+    private void resetXAxisBounds() {
+        xAxis.setLowerBound(0);
+        xAxis.setUpperBound(60);
+        xAxis.setTickUnit(15);
+    }
+
+    private long roundUp(long value, long step) {
+        return ((value + step - 1) / step) * step;
+    }
+
+    private long chooseTickUnit(long upper) {
+        if (upper <= 60) return 15;
+        if (upper <= 180) return 30;
+        if (upper <= 600) return 60;
+        if (upper <= 1800) return 300;
+        return 600;
     }
 
     private void installTooltip(XYChart.Data<Number, Number> dataPoint,

@@ -7,7 +7,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
 import org.json.JSONObject;
@@ -139,11 +138,15 @@ public class LoginController implements Initializable {
             showRegError("Vui lòng nhập đầy đủ thông tin.");
             return;
         }
+        if (username.length() < 3) {
+            showRegError("Tên đăng nhập tối thiểu 3 ký tự.");
+            return;
+        }
         if (password.length() < 6) {
             showRegError("Mật khẩu phải có ít nhất 6 ký tự.");
             return;
         }
-        if (!email.contains("@")) {
+        if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
             showRegError("Email không hợp lệ.");
             return;
         }
@@ -189,9 +192,8 @@ public class LoginController implements Initializable {
                 getClass().getResource("/com/auction/view/auction_list.fxml"));
             Parent root = loader.load();
             Stage stage = (Stage) loginButton.getScene().getWindow();
-            stage.setTitle("Auction System - Danh sách đấu giá");
-            stage.setScene(new Scene(root, 900, 600));
-            stage.show();
+            SceneUtil.setScene(stage, root, "Auction System - Danh sách đấu giá",
+                    1000, 650, 900, 600);
         } catch (IOException e) {
             LOGGER.severe("Không thể tải giao diện danh sách đấu giá: " + e.getMessage());
             showLoginError("Lỗi tải giao diện: " + e.getMessage());
@@ -228,17 +230,18 @@ public class LoginController implements Initializable {
      * Singleton đơn giản, không cần DB.
      */
     public static class Session {
-        private static Session instance;
- 
         private String userId;
         private String username;
         private String role;
  
         private Session() {}
+
+        private static class Holder {
+            private static final Session INSTANCE = new Session();
+        }
  
         public static Session getInstance() {
-            if (instance == null) instance = new Session();
-            return instance;
+            return Holder.INSTANCE;
         }
  
         public void login(String userId, String username, String role) {

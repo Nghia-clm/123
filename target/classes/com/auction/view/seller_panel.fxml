@@ -3,7 +3,7 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns="http://javafx.com/javafx/17"
+<VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.auction.controller.SellerController"
       spacing="0"
@@ -24,7 +24,7 @@
     <HBox VBox.vgrow="ALWAYS" spacing="0">
 
         <!-- COT TRAI: Danh sach san pham -->
-        <VBox prefWidth="480" spacing="0"
+        <VBox prefWidth="780" minWidth="650" spacing="0"
               style="-fx-border-color: #ddd; -fx-border-width: 0 1 0 0;">
 
             <!-- Toolbar -->
@@ -45,11 +45,11 @@
             <!-- Bang san pham -->
             <TableView fx:id="itemTable" VBox.vgrow="ALWAYS">
                 <columns>
-                    <TableColumn fx:id="colItemId"    text="ID"       prefWidth="80"/>
-                    <TableColumn fx:id="colName"      text="Ten"      prefWidth="140"/>
-                    <TableColumn fx:id="colType"      text="Loai"     prefWidth="90"/>
-                    <TableColumn fx:id="colStartPrice" text="Gia KD"  prefWidth="90"/>
-                    <TableColumn fx:id="colDesc"      text="Mo ta"    prefWidth="160"/>
+                    <TableColumn fx:id="colItemId"    text="ID"       prefWidth="130"/>
+                    <TableColumn fx:id="colName"      text="Ten"      prefWidth="240"/>
+                    <TableColumn fx:id="colType"      text="Loai"     prefWidth="110"/>
+                    <TableColumn fx:id="colStartPrice" text="Gia KD"  prefWidth="130"/>
+                    <TableColumn fx:id="colDesc"      text="Mo ta"    prefWidth="340"/>
                 </columns>
             </TableView>
 
@@ -61,15 +61,11 @@
                         onAction="#handleDeleteItem"
                         style="-fx-background-color: #e74c3c; -fx-text-fill: white;
                                -fx-background-radius: 4; -fx-cursor: hand;"/>
-                <Button fx:id="createAuctionFromItemButton" text="Chon de dau gia"
-                        onAction="#handleSelectItemForAuction"
-                        style="-fx-background-color: #f39c12; -fx-text-fill: white;
-                               -fx-font-weight: bold; -fx-background-radius: 4; -fx-cursor: hand;"/>
             </HBox>
         </VBox>
 
-        <!-- COT PHAI: Form them/sua + tao phien + admin -->
-        <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" HBox.hgrow="ALWAYS"
+        <!-- COT PHAI: Form them/sua + tao phien -->
+        <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" HBox.hgrow="ALWAYS" minWidth="480"
                     style="-fx-background-color: transparent; -fx-background: transparent;">
             <VBox spacing="12" style="-fx-padding: 16;">
 
@@ -168,34 +164,6 @@
                                        -fx-background-radius: 4; -fx-cursor: hand;"/>
                     </VBox>
                 </TitledPane>
-
-                <!-- Admin Panel -->
-                <TitledPane fx:id="adminPane" text="Admin - Quan ly nguoi dung"
-                            expanded="false" visible="false" managed="false"
-                            style="-fx-background-color: white; -fx-background-radius: 6;">
-                    <VBox spacing="10" style="-fx-padding: 12;">
-
-                        <TableView fx:id="userTable" prefHeight="200">
-                            <columns>
-                                <TableColumn fx:id="colUserId"   text="ID"       prefWidth="80"/>
-                                <TableColumn fx:id="colUsername" text="Username" prefWidth="120"/>
-                                <TableColumn fx:id="colRole"     text="Role"     prefWidth="80"/>
-                                <TableColumn fx:id="colEmail"    text="Email"    prefWidth="160"/>
-                            </columns>
-                        </TableView>
-
-                        <HBox spacing="8" alignment="CENTER_RIGHT">
-                            <Label fx:id="adminStatusLabel"
-                                   style="-fx-text-fill: #7f8c8d; -fx-font-size: 11px;"/>
-                            <Region HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="banUserButton" text="Ban user"
-                                    onAction="#handleBanUser"
-                                    style="-fx-background-color: #c0392b; -fx-text-fill: white;
-                                           -fx-background-radius: 4; -fx-cursor: hand;"/>
-                        </HBox>
-                    </VBox>
-                </TitledPane>
-
             </VBox>
         </ScrollPane>
     </HBox>

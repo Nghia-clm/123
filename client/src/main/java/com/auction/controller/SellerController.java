@@ -11,7 +11,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Stage;
@@ -53,7 +52,6 @@ public class SellerController implements Initializable {
 
     @FXML private Button refreshItemsButton;
     @FXML private Button deleteItemButton;
-    @FXML private Button createAuctionFromItemButton;
     @FXML private Label  itemStatusLabel;
 
     // ── FXML: Form thêm / sửa sản phẩm ───────────────────────────────────
@@ -73,22 +71,11 @@ public class SellerController implements Initializable {
     @FXML private Button    createAuctionButton;
     @FXML private Label     auctionStatusLabel;
 
-    // ── FXML: Admin panel (ẩn nếu không phải ADMIN) ───────────────────────
-    @FXML private TitledPane adminPane;
-    @FXML private TableView<UserRow>         userTable;
-    @FXML private TableColumn<UserRow, String> colUserId;
-    @FXML private TableColumn<UserRow, String> colUsername;
-    @FXML private TableColumn<UserRow, String> colRole;
-    @FXML private TableColumn<UserRow, String> colEmail;
-    @FXML private Button banUserButton;
-    @FXML private Label  adminStatusLabel;
-
     // ── FXML: Navigation ──────────────────────────────────────────────────
     @FXML private Button backButton;
 
     // ── State ──────────────────────────────────────────────────────────────
     private final ObservableList<ItemRow> itemRows = FXCollections.observableArrayList();
-    private final ObservableList<UserRow> userRows = FXCollections.observableArrayList();
     private String editingItemId = null; // null = thêm mới, non-null = đang sửa
 
     // ── Initializable ──────────────────────────────────────────────────────
@@ -105,14 +92,17 @@ public class SellerController implements Initializable {
 
         // Các nút phụ thuộc vào selection
         deleteItemButton.setDisable(true);
-        createAuctionFromItemButton.setDisable(true);
+        createAuctionButton.setDisable(true);
 
         itemTable.getSelectionModel().selectedItemProperty().addListener(
             (obs, old, selected) -> {
-                boolean hasSelection = selected != null;
-                deleteItemButton.setDisable(!hasSelection);
-                createAuctionFromItemButton.setDisable(!hasSelection);
-                if (hasSelection) fillFormForEdit(selected);
+                updateSelectionActions(selected);
+                if (selected != null && canManageItem(selected)) {
+                    fillFormForEdit(selected);
+                } else if (selected != null) {
+                    resetEditForm();
+                }
+                fillAuctionFormFromSelection(selected);
             }
         );
 
@@ -120,19 +110,7 @@ public class SellerController implements Initializable {
         typeCombo.getItems().addAll("ELECTRONICS", "ART", "VEHICLE");
         typeCombo.setValue("ELECTRONICS");
 
-        // Gợi ý thời gian bắt đầu / kết thúc
-        String now  = LocalDateTime.now().format(DT_FMT);
-        String plus1 = LocalDateTime.now().plusHours(1).format(DT_FMT);
-        startTimeField.setText(now);
-        endTimeField.setText(plus1);
-
-        // Admin panel
-        boolean isAdmin = Session.getInstance().isAdmin();
-        if (adminPane != null) {
-            adminPane.setVisible(isAdmin);
-            adminPane.setManaged(isAdmin);
-        }
-        if (isAdmin) setupAdminPanel();
+        resetDefaultAuctionTimes();
 
         loadItems();
     }
@@ -158,7 +136,8 @@ public class SellerController implements Initializable {
                                     it.optString("name"),
                                     it.optString("type"),
                                     String.format("%.0f đ", it.optDouble("startingPrice")),
-                                    it.optString("description")
+                                    it.optString("description"),
+                                    it.optString("sellerId")
                                 ));
                             }
                         }
@@ -188,14 +167,18 @@ public class SellerController implements Initializable {
         setFormStatus("Đang chỉnh sửa: " + item.getName());
     }
 
-    @FXML
-    private void handleClearForm(ActionEvent event) {
+    private void resetEditForm() {
         editingItemId = null;
         nameField.clear();
         descField.clear();
         typeCombo.setValue("ELECTRONICS");
         startPriceField.clear();
         saveItemButton.setText("Thêm sản phẩm");
+    }
+
+    @FXML
+    private void handleClearForm(ActionEvent event) {
+        resetEditForm();
         formStatusLabel.setVisible(false);
         itemTable.getSelectionModel().clearSelection();
     }
@@ -211,12 +194,12 @@ public class SellerController implements Initializable {
             setFormStatus("Tên sản phẩm và giá khởi điểm không được để trống.");
             return;
         }
-        double price;
+        long price;
         try {
-            price = Double.parseDouble(priceStr);
+            price = Long.parseLong(priceStr);
             if (price <= 0) throw new NumberFormatException();
         } catch (NumberFormatException e) {
-            setFormStatus("Giá khởi điểm phải là số dương hợp lệ.");
+            setFormStatus("Giá khởi điểm phải là số nguyên dương.");
             return;
         }
 
@@ -249,10 +232,12 @@ public class SellerController implements Initializable {
             final String itemId = editingItemId;
             new Thread(() -> {
                 JSONObject data = new JSONObject();
-                data.put("itemId",      itemId);
-                data.put("name",        name);
-                data.put("description", desc);
-                JSONObject response = ServerConnection.getInstance().sendRequest("UPDATE_ITEM", data);
+            data.put("itemId",      itemId);
+            data.put("type",        type);
+            data.put("name",        name);
+            data.put("description", desc);
+            data.put("startingPrice", price);
+            JSONObject response = ServerConnection.getInstance().sendRequest("UPDATE_ITEM", data);
 
                 Platform.runLater(() -> {
                     saveItemButton.setDisable(false);
@@ -274,6 +259,7 @@ public class SellerController implements Initializable {
     private void handleDeleteItem(ActionEvent event) {
         ItemRow selected = itemTable.getSelectionModel().getSelectedItem();
         if (selected == null) return;
+        if (!canManageItem(selected)) return;
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
             "Xóa sản phẩm \"" + selected.getName() + "\"?",
@@ -302,14 +288,19 @@ public class SellerController implements Initializable {
 
     // ── Tạo phiên đấu giá ─────────────────────────────────────────────────
 
-    @FXML
-    private void handleSelectItemForAuction(ActionEvent event) {
-        ItemRow selected = itemTable.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            selectedItemIdField.setText(selected.getItemId());
-            String priceRaw = selected.getStartingPrice().replace(" đ", "").replace(",", "");
-            auctionStartPriceField.setText(priceRaw);
+    private void fillAuctionFormFromSelection(ItemRow selected) {
+        if (selected == null || !canManageItem(selected)) {
+            selectedItemIdField.clear();
+            auctionStartPriceField.clear();
+            createAuctionButton.setDisable(true);
+            return;
         }
+
+        selectedItemIdField.setText(selected.getItemId());
+        String priceRaw = selected.getStartingPrice().replace(" đ", "").replace(",", "");
+        auctionStartPriceField.setText(priceRaw);
+        resetDefaultAuctionTimes();
+        createAuctionButton.setDisable(false);
     }
 
     @FXML
@@ -323,12 +314,12 @@ public class SellerController implements Initializable {
             setAuctionStatus("Vui lòng điền đầy đủ thông tin phiên đấu giá.");
             return;
         }
-        double price;
+        long price;
         try {
-            price = Double.parseDouble(priceStr);
+            price = Long.parseLong(priceStr);
             if (price <= 0) throw new NumberFormatException();
         } catch (NumberFormatException e) {
-            setAuctionStatus("Giá khởi điểm phiên đấu giá phải là số dương hợp lệ.");
+            setAuctionStatus("Giá khởi điểm phiên đấu giá phải là số nguyên dương.");
             return;
         }
 
@@ -348,87 +339,12 @@ public class SellerController implements Initializable {
                     setAuctionStatus("✓ Tạo phiên đấu giá thành công!");
                     selectedItemIdField.clear();
                     auctionStartPriceField.clear();
+                    resetDefaultAuctionTimes();
                 } else {
                     setAuctionStatus("✗ " + response.optString("message"));
                 }
             });
         }, "create-auction").start();
-    }
-
-    // ── Admin Panel ────────────────────────────────────────────────────────
-
-    private void setupAdminPanel() {
-        if (userTable == null) return;
-        colUserId.setCellValueFactory(new PropertyValueFactory<>("userId"));
-        colUsername.setCellValueFactory(new PropertyValueFactory<>("username"));
-        colRole.setCellValueFactory(new PropertyValueFactory<>("role"));
-        colEmail.setCellValueFactory(new PropertyValueFactory<>("email"));
-        userTable.setItems(userRows);
-        banUserButton.setDisable(true);
-        userTable.getSelectionModel().selectedItemProperty().addListener(
-            (obs, old, sel) -> banUserButton.setDisable(sel == null)
-        );
-        loadAllUsers();
-    }
-
-    private void loadAllUsers() {
-        new Thread(() -> {
-            JSONObject response = ServerConnection.getInstance().sendRequest("GET_ALL_USERS", null);
-            Platform.runLater(() -> {
-                if (ServerConnection.isOk(response)) {
-                    JSONObject data = response.optJSONObject("data");
-                    if (data != null) {
-                        JSONArray arr = data.optJSONArray("users");
-                        userRows.clear();
-                        if (arr != null) {
-                            for (int i = 0; i < arr.length(); i++) {
-                                JSONObject u = arr.optJSONObject(i);
-                                if (u == null) continue;
-                                userRows.add(new UserRow(
-                                    u.optString("userId"),
-                                    u.optString("username"),
-                                    u.optString("role"),
-                                    u.optString("email")
-                                ));
-                            }
-                        }
-                        if (adminStatusLabel != null)
-                            adminStatusLabel.setText("Tổng " + userRows.size() + " user.");
-                    }
-                }
-            });
-        }, "load-users").start();
-    }
-
-    @FXML
-    private void handleBanUser(ActionEvent event) {
-        if (userTable == null) return;
-        UserRow selected = userTable.getSelectionModel().getSelectedItem();
-        if (selected == null) return;
-
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-            "Ban user \"" + selected.getUsername() + "\"?",
-            ButtonType.YES, ButtonType.NO);
-        confirm.showAndWait().ifPresent(bt -> {
-            if (bt == ButtonType.YES) {
-                new Thread(() -> {
-                    JSONObject data = new JSONObject();
-                    data.put("userId", selected.getUserId());
-                    JSONObject response = ServerConnection.getInstance().sendRequest("BAN_USER", data);
-
-                    Platform.runLater(() -> {
-                        if (ServerConnection.isOk(response)) {
-                            if (adminStatusLabel != null)
-                                adminStatusLabel.setText("✓ Đã ban user: " + selected.getUsername());
-                            loadAllUsers();
-                        } else {
-                            if (adminStatusLabel != null)
-                                adminStatusLabel.setText("✗ " + response.optString("message"));
-                        }
-                    });
-                }, "ban-user").start();
-            }
-        });
     }
 
     // ── Navigation ─────────────────────────────────────────────────────────
@@ -438,6 +354,18 @@ public class SellerController implements Initializable {
         loadItems();
     }
 
+    private void updateSelectionActions(ItemRow selected) {
+        boolean canManage = selected != null && canManageItem(selected);
+        deleteItemButton.setDisable(!canManage);
+        createAuctionButton.setDisable(!canManage);
+    }
+
+    private boolean canManageItem(ItemRow item) {
+        if (item == null) return false;
+        Session session = Session.getInstance();
+        return session.isAdmin() || item.getSellerId().equals(session.getUserId());
+    }
+
     @FXML
     private void handleBack(ActionEvent event) {
         try {
@@ -445,8 +373,8 @@ public class SellerController implements Initializable {
                 getClass().getResource("/com/auction/view/auction_list.fxml"));
             Parent root = loader.load();
             Stage stage = (Stage) backButton.getScene().getWindow();
-            stage.setTitle("Auction System - Danh sách đấu giá");
-            stage.setScene(new Scene(root, 900, 600));
+            SceneUtil.setScene(stage, root, "Auction System - Danh sách đấu giá",
+                    1000, 650, 900, 600);
         } catch (IOException e) {
             LOGGER.severe("Không thể tải giao diện danh sách đấu giá: " + e.getMessage());
         }
@@ -458,6 +386,13 @@ public class SellerController implements Initializable {
     private void setFormStatus(String msg)    { formStatusLabel.setText(msg); formStatusLabel.setVisible(true); }
     private void setAuctionStatus(String msg) { auctionStatusLabel.setText(msg); }
 
+    private void resetDefaultAuctionTimes() {
+        LocalDateTime startTime = LocalDateTime.now().plusMinutes(1);
+        LocalDateTime endTime = startTime.plusHours(1);
+        startTimeField.setText(startTime.format(DT_FMT));
+        endTimeField.setText(endTime.format(DT_FMT));
+    }
+
     // ── Inner classes: Row models ──────────────────────────────────────────
 
     public static class ItemRow {
@@ -466,14 +401,16 @@ public class SellerController implements Initializable {
         private final SimpleStringProperty type;
         private final SimpleStringProperty startingPrice;
         private final SimpleStringProperty description;
+        private final SimpleStringProperty sellerId;
 
         public ItemRow(String itemId, String name, String type,
-                       String startingPrice, String description) {
+                       String startingPrice, String description, String sellerId) {
             this.itemId        = new SimpleStringProperty(itemId);
             this.name          = new SimpleStringProperty(name);
             this.type          = new SimpleStringProperty(type);
             this.startingPrice = new SimpleStringProperty(startingPrice);
             this.description   = new SimpleStringProperty(description);
+            this.sellerId      = new SimpleStringProperty(sellerId);
         }
 
         public String getItemId()       { return itemId.get(); }
@@ -481,24 +418,6 @@ public class SellerController implements Initializable {
         public String getType()         { return type.get(); }
         public String getStartingPrice(){ return startingPrice.get(); }
         public String getDescription()  { return description.get(); }
-    }
-
-    public static class UserRow {
-        private final SimpleStringProperty userId;
-        private final SimpleStringProperty username;
-        private final SimpleStringProperty role;
-        private final SimpleStringProperty email;
-
-        public UserRow(String userId, String username, String role, String email) {
-            this.userId   = new SimpleStringProperty(userId);
-            this.username = new SimpleStringProperty(username);
-            this.role     = new SimpleStringProperty(role);
-            this.email    = new SimpleStringProperty(email);
-        }
-
-        public String getUserId()   { return userId.get(); }
-        public String getUsername() { return username.get(); }
-        public String getRole()     { return role.get(); }
-        public String getEmail()    { return email.get(); }
+        public String getSellerId()     { return sellerId.get(); }
     }
 }

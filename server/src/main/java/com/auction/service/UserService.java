@@ -33,8 +33,10 @@ public class UserService {
     public User register(String username, String password, String email, String role) {
         // Validate
         if (username == null || username.isBlank()) throw new IllegalArgumentException("Tên đăng nhập không được để trống");
-        if (password == null || password.length() < 6) throw new IllegalArgumentException("Mật khẩu phải có ít nhất 6 ký tự");
-        if (email == null || !email.contains("@")) throw new IllegalArgumentException("Định dạng email không hợp lệ");
+        if (username.length() < 3) throw new IllegalArgumentException("Tên đăng nhập tối thiểu 3 ký tự");
+        if (password == null || password.isBlank()) throw new IllegalArgumentException("Mật khẩu không được để trống");
+        if (password.length() < 6) throw new IllegalArgumentException("Mật khẩu phải có ít nhất 6 ký tự");
+        if (!isValidEmail(email)) throw new IllegalArgumentException("Định dạng email không hợp lệ");
 
         // Kiểm tra trùng username
         if (userDAO.findByUsername(username) != null) {
@@ -134,5 +136,10 @@ public class UserService {
             LOGGER.log(Level.SEVERE, "SHA-256 not available", e);
             throw new RuntimeException("Lỗi mã hóa mật khẩu", e);
         }
+    }
+
+    private boolean isValidEmail(String email) {
+        return email != null
+                && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     }
 }

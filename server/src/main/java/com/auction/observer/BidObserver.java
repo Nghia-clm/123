@@ -34,7 +34,7 @@ public interface BidObserver {
     }
 
     /**
-     * Gọi trực tiếp từ Auction.notifyObservers() khi có bid mới.
+     * Gọi từ AuctionService.notifyObservers() khi giá hiện tại thay đổi.
      * Cung cấp thông tin tối thiểu để update UI realtime.
      */
     default void onBidUpdated(String auctionId, double newPrice, String leadingBidderId) {

@@ -1,6 +1,7 @@
 package com.auction.manager;
 
 
+import com.auction.dao.AuctionDAO;
 import com.auction.model.Auction;
 import com.auction.model.AuctionStatus;
 import com.auction.network.ClientHandler;
@@ -25,11 +26,13 @@ import java.util.logging.Logger;
 public class AuctionManager {
 
     private static final Logger LOGGER = Logger.getLogger(AuctionManager.class.getName());
+    private static final int EMPTY_AUCTION_CANCEL_DELAY_SECONDS = 3;
 
     // ── Singleton ──────────────────────────────────────────────────────────
     private static volatile AuctionManager instance;
 
     private AuctionManager() {
+        loadOpenAuctionsFromDatabase();
         startAuctionScheduler();
         LOGGER.info("AuctionManager initialized.");
     }
@@ -78,6 +81,7 @@ public class AuctionManager {
     // ── Scheduler tự động đóng phiên ──────────────────────────────────────
     private final ScheduledExecutorService scheduler =
             Executors.newScheduledThreadPool(2);
+    private final AuctionDAO auctionDAO = new AuctionDAO();
 
     // ─────────────────────────────────────────────────────────────────────
     //  AUCTION MANAGEMENT
@@ -87,6 +91,7 @@ public class AuctionManager {
      * Thêm một phiên đấu giá vào manager (được gọi khi tạo auction mới).
      */
     public void addAuction(Auction auction) {
+        if (auction == null) return;
         String id = auction.getId();
         // Luôn update auction object trong cache
         activeAuctions.put(id, auction);
@@ -245,13 +250,19 @@ public class AuctionManager {
      */
     public void extendAuctionTime(String auctionId, int extraSeconds) {
         Auction auction = activeAuctions.get(auctionId);
+        if (auction == null) {
+            auction = auctionDAO.findById(auctionId);
+            if (auction != null) addAuction(auction);
+        }
         if (auction == null) return;
 
         ReentrantReadWriteLock.WriteLock lock = getWriteLock(auctionId);
+        String broadcastMessage;
         lock.lock();
         try {
             LocalDateTime newEndTime = auction.getEndTime().plusSeconds(extraSeconds);
             auction.setEndTime(newEndTime);
+            auctionDAO.updateEndTime(auctionId, newEndTime);
             LOGGER.info("Auction " + auctionId + " extended by "
                     + extraSeconds + "s. New end time: " + newEndTime);
 
@@ -261,11 +272,13 @@ public class AuctionManager {
             msg.put("auctionId", auctionId);
             msg.put("newEndTime", newEndTime.toString());
             msg.put("extraSeconds", extraSeconds);
-            broadcastToRoom(auctionId, msg.toString());
+            broadcastMessage = msg.toString();
 
         } finally {
             lock.unlock();
         }
+
+        broadcastToRoom(auctionId, broadcastMessage);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -273,55 +286,117 @@ public class AuctionManager {
     // ─────────────────────────────────────────────────────────────────────
 
     /**
-     * Khởi động scheduler: mỗi 10 giây kiểm tra các phiên hết hạn.
+     * Khởi động scheduler: mỗi giây kiểm tra các phiên hết hạn.
      */
     private void startAuctionScheduler() {
         scheduler.scheduleAtFixedRate(
             this::checkAndCloseExpiredAuctions,
-            10,   // delay ban đầu
-            10,   // chu kỳ kiểm tra
+            1,
+            1,
             TimeUnit.SECONDS
         );
-        LOGGER.info("Auction scheduler started (10s interval).");
+        LOGGER.info("Auction scheduler started (1s interval).");
+    }
+
+    private void loadOpenAuctionsFromDatabase() {
+        try {
+            for (Auction auction : auctionDAO.findAll()) {
+                if (auction.getStatus() == AuctionStatus.OPEN || auction.getStatus() == AuctionStatus.RUNNING) {
+                    addAuction(auction);
+                }
+            }
+            LOGGER.info("Open/running auctions loaded into manager cache: " + activeAuctions.size());
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Cannot preload auctions from database", e);
+        }
     }
 
     /**
      * Kiểm tra tất cả auction đang active, đóng những phiên đã hết giờ.
      */
     private void checkAndCloseExpiredAuctions() {
-        LocalDateTime now = LocalDateTime.now();
-
         for (Map.Entry<String, Auction> entry : activeAuctions.entrySet()) {
             String auctionId = entry.getKey();
             Auction auction  = entry.getValue();
 
-            if (auction.getStatus() == AuctionStatus.RUNNING
-                    && auction.getEndTime().isBefore(now)) {
+            if (auction.getStatus() == AuctionStatus.OPEN
+                    || auction.getStatus() == AuctionStatus.RUNNING
+                    || (auction.getStatus() == AuctionStatus.FINISHED
+                            && auction.getCurrentWinnerId() == null)) {
 
                 ReentrantReadWriteLock.WriteLock lock = getWriteLock(auctionId);
+                String finishedMessage = null;
+                boolean removeAfterBroadcast = false;
                 lock.lock();
                 try {
+                    Auction latest = auctionDAO.findById(auctionId);
+                    if (latest != null) {
+                        auction = latest;
+                        activeAuctions.put(auctionId, latest);
+                    }
+
+                    LocalDateTime checkedAt = LocalDateTime.now();
+                    if (auction.getStatus() == AuctionStatus.OPEN
+                            && !checkedAt.isBefore(auction.getStartTime())
+                            && checkedAt.isBefore(auction.getEndTime())) {
+                        auction.setStatus(AuctionStatus.RUNNING);
+                        auctionDAO.updateStatus(auctionId, AuctionStatus.RUNNING);
+                        LOGGER.info("Auction " + auctionId + " auto-started by scheduler.");
+                    }
+
+                    if (auction.getStatus() == AuctionStatus.FINISHED
+                            && auction.getCurrentWinnerId() == null
+                            && LocalDateTime.now().isAfter(
+                                    auction.getEndTime().plusSeconds(EMPTY_AUCTION_CANCEL_DELAY_SECONDS))) {
+                        auction.setStatus(AuctionStatus.CANCELED);
+                        auctionDAO.updateStatus(auctionId, AuctionStatus.CANCELED);
+                        LOGGER.info("Auction " + auctionId + " canceled after empty finish delay.");
+
+                        org.json.JSONObject msg = new org.json.JSONObject();
+                        msg.put("event", "AUCTION_FINISHED");
+                        msg.put("auctionId", auctionId);
+                        msg.put("status", AuctionStatus.CANCELED.name());
+                        msg.put("finalPrice", auction.getCurrentPrice());
+                        finishedMessage = msg.toString();
+                        removeAfterBroadcast = true;
+                    }
+
                     // Kiểm tra lại sau khi có lock (tránh double-close)
-                    if (auction.getStatus() == AuctionStatus.RUNNING
-                            && auction.getEndTime().isBefore(LocalDateTime.now())) {
+                    if ((auction.getStatus() == AuctionStatus.OPEN || auction.getStatus() == AuctionStatus.RUNNING)
+                            && !auction.getEndTime().isAfter(LocalDateTime.now())) {
 
                         auction.setStatus(AuctionStatus.FINISHED);
-                        LOGGER.info("Auction " + auctionId + " auto-closed by scheduler.");
+                        auctionDAO.updateStatus(auctionId, AuctionStatus.FINISHED);
+
+                        AuctionStatus finalStatus = AuctionStatus.FINISHED;
+                        LOGGER.info("Auction " + auctionId + " auto-closed by scheduler: " + finalStatus);
 
                         // Broadcast kết thúc phiên
                         org.json.JSONObject msg = new org.json.JSONObject();
                         msg.put("event", "AUCTION_FINISHED");
                         msg.put("auctionId", auctionId);
+                        msg.put("status", finalStatus.name());
                         msg.put("finalPrice", auction.getCurrentPrice());
                         if (auction.getCurrentWinnerId() != null) {
                             msg.put("winnerId", auction.getCurrentWinnerId());
+                            if (auction.getWinner() != null) {
+                                msg.put("winnerName", auction.getWinner().getUsername());
+                            }
                         }
-                        broadcastToRoom(auctionId, msg.toString());
+                        finishedMessage = msg.toString();
+                        removeAfterBroadcast = auction.getCurrentWinnerId() != null;
                     }
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Error closing auction: " + auctionId, e);
                 } finally {
                     lock.unlock();
+                }
+
+                if (finishedMessage != null) {
+                    broadcastToRoom(auctionId, finishedMessage);
+                }
+                if (removeAfterBroadcast) {
+                    removeAuction(auctionId);
                 }
             }
         }

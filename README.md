@@ -103,7 +103,7 @@ CLIENT (JavaFX + MVC)  ◄──── JSON/Socket Port 9999 ────►  SE
 
 | Công cụ | Phiên bản |
 |---------|-----------|
-| Java | 17+ |
+| Java | 21+ |
 | Maven | 3.8+ |
 | MySQL | 8.x |
 | JavaFX | 21 (tự động tải qua Maven) |
@@ -126,9 +126,9 @@ database/sample_data.sql  ← thêm dữ liệu mẫu
 ```
 
 ### Bước 3 – Sửa thông tin kết nối database
-Mở file `sever/src/main/java/com/auction/dao/DatabaseConnection.java`, sửa:
+Mở file `server/src/main/java/com/auction/dao/DatabaseConnection.java`, sửa:
 ```java
-private static final String PASSWORD = "your_password"; // đổi thành password MySQL của bạn
+private static final String PASSWORD = "password"; // đổi theo mật khẩu MySQL trên máy chạy
 ```
 
 ### Bước 4 – Build project
@@ -138,7 +138,7 @@ mvn compile
 
 ### Bước 5 – Chạy Server (Terminal 1)
 ```bash
-mvn exec:java -'Dexec.mainClass="com.auction.Main'
+mvn exec:java '-Dexec.mainClass=com.auction.Main'
 ```
 Chờ thấy dòng: `=== Auction Server started on port 9999 ===`
 
@@ -182,7 +182,7 @@ AuctionSystem/
 ├── database/
 │   ├── scheme.sql               ← Tạo bảng MySQL              ← Nghĩa
 │   └── sample_data.sql          ← Dữ liệu mẫu                 ← Nghĩa
-├── sever/src/main/java/com/auction/
+├── server/src/main/java/com/auction/
 │   ├── Main.java                ← Khởi động Server            ← Mạnh
 │   ├── model/                   ← Entity, User, Item, Auction  ← Mạnh
 │   ├── dao/                     ← Truy cập database (JDBC)    ← Nghĩa
@@ -222,6 +222,10 @@ Giao tiếp qua **JSON over TCP Socket**, mỗi message là 1 dòng.
 **Request:**
 ```json
 { "action": "LOGIN", "data": { "username": "alice", "password": "123456" } }
+{ "action": "CANCEL_AUCTION", "data": { "auctionId": "..." } }
+{ "action": "MARK_AUCTION_PAID", "data": { "auctionId": "..." } }
+{ "action": "REGISTER_AUTO_BID", "data": { "auctionId": "...", "maxBid": 1000000, "increment": 50000 } }
+{ "action": "CANCEL_AUTO_BID", "data": { "auctionId": "..." } }
 ```
 
 **Response:**
@@ -233,6 +237,8 @@ Giao tiếp qua **JSON over TCP Socket**, mỗi message là 1 dòng.
 **Broadcast realtime (server → tất cả client trong phòng):**
 ```json
 { "event": "NEW_BID",          "auctionId": "...", "bidAmount": 500000 }
+{ "event": "AUTO_BID",         "auctionId": "...", "bidderId": "...", "amount": 550000 }
 { "event": "AUCTION_FINISHED", "auctionId": "...", "winnerId": "...", "finalPrice": 700000 }
+{ "event": "AUCTION_PAID",     "auctionId": "...", "status": "PAID" }
 { "event": "AUCTION_EXTENDED", "auctionId": "...", "newEndTime": "...", "extraSeconds": 60 }
 ```

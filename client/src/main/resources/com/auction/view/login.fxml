@@ -3,17 +3,18 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns="http://javafx.com/javafx/17"
+<VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.auction.controller.LoginController"
       alignment="CENTER" spacing="16"
+      maxWidth="Infinity" maxHeight="Infinity"
       style="-fx-background-color: #f0f4f8; -fx-padding: 24;">
 
     <!-- Tiêu đề -->
     <Label text="Hệ thống đấu giá trực tuyến"
            style="-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-    <Label text="ĐĂNG NHẬP"
-           style="-fx-font-size: 12px; -fx-text-fill: #7f8c8d;"/>
+    <Label text="ĐĂNG NHẬP/ĐĂNG KÍ"
+           style="-fx-font-size: 12px; -fx-text-fill: #93a9aa;"/>
 
     <!-- Card -->
     <VBox style="-fx-background-color: white; -fx-background-radius: 10;
@@ -118,6 +119,4 @@
         </TabPane>
     </VBox>
 
-    <Label text="© 2026 Auction System – Nhóm sinh viên"
-           style="-fx-font-size: 11px; -fx-text-fill: #bdc3c7;"/>
 </VBox>

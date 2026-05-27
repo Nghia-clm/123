@@ -2,9 +2,11 @@ C:\noiDungNhayCam\Code\Solo\AuctionSystem\advanced\src\main\java\com\auction\Ant
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\advanced\src\main\java\com\auction\AutoBidder.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\advanced\src\main\java\com\auction\BidHistoryVisualizer.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\chart\BidHistoryChart.java
+C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\controller\AdminController.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\controller\AuctionListController.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\controller\BidController.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\controller\LoginController.java
+C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\controller\SceneUtil.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\controller\SellerController.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\MainApp.java
 C:\noiDungNhayCam\Code\Solo\AuctionSystem\client\src\main\java\com\auction\network\ServerConnection.java

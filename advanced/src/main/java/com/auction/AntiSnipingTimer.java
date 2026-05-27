@@ -56,7 +56,26 @@ public class AntiSnipingTimer implements BidObserver {
     /** Map: auctionId → số lần đã gia hạn */
     private final ConcurrentHashMap<String, Integer> extensionCounts = new ConcurrentHashMap<>();
 
-    private final AuctionManager auctionManager = AuctionManager.getInstance();
+    public interface AuctionTimerRuntime {
+        Auction getAuction(String auctionId);
+        void extendAuctionTime(String auctionId, int extraSeconds);
+    }
+
+    private static final class AuctionManagerTimerRuntime implements AuctionTimerRuntime {
+        private final AuctionManager auctionManager = AuctionManager.getInstance();
+
+        @Override
+        public Auction getAuction(String auctionId) {
+            return auctionManager.getAuction(auctionId);
+        }
+
+        @Override
+        public void extendAuctionTime(String auctionId, int extraSeconds) {
+            auctionManager.extendAuctionTime(auctionId, extraSeconds);
+        }
+    }
+
+    private final AuctionTimerRuntime auctionManager;
 
     // ── Constructors ───────────────────────────────────────────────────────
 
@@ -73,11 +92,17 @@ public class AntiSnipingTimer implements BidObserver {
      * @param maxExtensions       số lần gia hạn tối đa (0 = không giới hạn)
      */
     public AntiSnipingTimer(int snipeWindowSeconds, int extensionSeconds, int maxExtensions) {
+        this(snipeWindowSeconds, extensionSeconds, maxExtensions, new AuctionManagerTimerRuntime());
+    }
+
+    public AntiSnipingTimer(int snipeWindowSeconds, int extensionSeconds, int maxExtensions,
+                            AuctionTimerRuntime auctionManager) {
         if (snipeWindowSeconds <= 0) throw new IllegalArgumentException("snipeWindowSeconds phải > 0");
         if (extensionSeconds <= 0)   throw new IllegalArgumentException("extensionSeconds phải > 0");
         this.snipeWindowSeconds = snipeWindowSeconds;
         this.extensionSeconds   = extensionSeconds;
         this.maxExtensions      = maxExtensions;
+        this.auctionManager     = auctionManager;
     }
 
     // ── BidObserver callback ───────────────────────────────────────────────

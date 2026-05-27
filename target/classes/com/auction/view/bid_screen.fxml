@@ -3,7 +3,7 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns="http://javafx.com/javafx/17"
+<VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.auction.controller.BidController"
       spacing="0"
@@ -24,11 +24,11 @@
     </HBox>
 
     <!-- Noi dung chinh: 2 cot -->
-    <HBox VBox.vgrow="ALWAYS" spacing="0">
+    <HBox VBox.vgrow="ALWAYS" spacing="0" maxWidth="Infinity">
 
         <!-- COT TRAI: thong tin + dat gia + bieu do -->
-        <VBox prefWidth="520" spacing="0"
-              style="-fx-border-color: #ddd; -fx-border-width: 0 1 0 0;">
+        <VBox prefWidth="760" minWidth="620" HBox.hgrow="ALWAYS" spacing="0"
+              style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-width: 0 1 0 0;">
 
             <!-- Thong tin san pham -->
             <VBox style="-fx-background-color: white; -fx-padding: 16;
@@ -38,6 +38,8 @@
                 <Label fx:id="itemNameLabel"
                        style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"
                        wrapText="true"/>
+                <Label fx:id="itemDescLabel" wrapText="true"
+                       style="-fx-text-fill: #7f8c8d; -fx-font-size: 12px;"/>
                 <HBox spacing="16">
                     <VBox spacing="2">
                         <Label text="Loai" style="-fx-text-fill: #95a5a6; -fx-font-size: 11px;"/>
@@ -48,8 +50,6 @@
                         <Label fx:id="startingPriceLabel" style="-fx-font-weight: bold; -fx-text-fill: #7f8c8d;"/>
                     </VBox>
                 </HBox>
-                <Label fx:id="itemDescLabel" wrapText="true"
-                       style="-fx-text-fill: #7f8c8d; -fx-font-size: 12px;"/>
             </VBox>
 
             <!-- Trang thai dau gia realtime -->
@@ -92,6 +92,14 @@
                        style="-fx-text-fill: #34495e;"
                        GridPane.columnIndex="0" GridPane.rowIndex="5"
                        GridPane.columnSpan="2"/>
+
+                <Label fx:id="startCountdownTitleLabel" text="BAT DAU SAU"
+                       style="-fx-text-fill: #95a5a6; -fx-font-size: 11px;"
+                       GridPane.columnIndex="0" GridPane.rowIndex="6"/>
+                <Label fx:id="startCountdownLabel" text="--:--:--"
+                       style="-fx-font-weight: bold; -fx-text-fill: #f39c12;"
+                       GridPane.columnIndex="0" GridPane.rowIndex="7"
+                       GridPane.columnSpan="2"/>
             </GridPane>
 
             <!-- Form dat gia -->
@@ -114,30 +122,57 @@
                        style="-fx-font-size: 12px;" visible="false"/>
             </VBox>
 
-            <!-- Bieu do gia -->
-            <VBox VBox.vgrow="ALWAYS"
-                  style="-fx-background-color: white; -fx-padding: 10;
-                         -fx-border-color: #eee; -fx-border-width: 1 0 0 0;">
-                <Label text="BIEU DO GIA THEO THOI GIAN"
-                       style="-fx-font-weight: bold; -fx-text-fill: #7f8c8d; -fx-font-size: 11px;
-                              -fx-padding: 0 0 6 0;"/>
-                <StackPane fx:id="chartContainer" VBox.vgrow="ALWAYS"
-                           style="-fx-background-color: #fafafa;"/>
+            <!-- Auto-bid -->
+            <VBox style="-fx-background-color: white; -fx-padding: 0 16 16 16;" spacing="10"
+                  VBox.vgrow="ALWAYS">
+                <Label text="AUTO-BID"
+                       style="-fx-font-weight: bold; -fx-text-fill: #7f8c8d; -fx-font-size: 11px;"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <TextField fx:id="autoMaxBidField" HBox.hgrow="ALWAYS"
+                               promptText="Gia toi da"
+                               style="-fx-pref-height: 34px;"/>
+                    <TextField fx:id="autoIncrementField" HBox.hgrow="ALWAYS"
+                               promptText="Buoc gia"
+                               style="-fx-pref-height: 34px;"/>
+                    <Button fx:id="registerAutoBidButton" text="Bật"
+                            onAction="#handleRegisterAutoBid"
+                            style="-fx-background-color: #2980b9; -fx-text-fill: white;
+                                   -fx-font-weight: bold; -fx-pref-height: 34px;
+                                   -fx-background-radius: 4; -fx-cursor: hand;
+                                   -fx-min-width: 70px;"/>
+                    <Button fx:id="cancelAutoBidButton" text="Tắt"
+                            onAction="#handleCancelAutoBid"
+                            style="-fx-background-color: #7f8c8d; -fx-text-fill: white;
+                                   -fx-font-weight: bold; -fx-pref-height: 34px;
+                                   -fx-background-radius: 4; -fx-cursor: hand;
+                                   -fx-min-width: 70px;"/>
+                </HBox>
+                <Label fx:id="autoBidStatusLabel" wrapText="true"
+                       style="-fx-font-size: 12px;" visible="false"/>
             </VBox>
+
         </VBox>
 
-        <!-- COT PHAI: lich su bid -->
-        <VBox prefWidth="380" VBox.vgrow="ALWAYS"
+        <!-- COT PHAI: lich su bid + bieu do -->
+        <VBox prefWidth="600" minWidth="520" maxWidth="680"
+              HBox.hgrow="NEVER" VBox.vgrow="ALWAYS"
               style="-fx-background-color: white; -fx-padding: 16;" spacing="8">
             <Label text="LICH SU DAT GIA"
                    style="-fx-font-weight: bold; -fx-text-fill: #7f8c8d; -fx-font-size: 11px;"/>
-            <TableView fx:id="historyTable" VBox.vgrow="ALWAYS">
+            <TableView fx:id="historyTable" VBox.vgrow="ALWAYS" minHeight="240" maxWidth="Infinity">
                 <columns>
                     <TableColumn fx:id="colBidder" text="Nguoi dat" prefWidth="130"/>
                     <TableColumn fx:id="colAmount" text="So tien"   prefWidth="100"/>
                     <TableColumn fx:id="colTime"   text="Thoi gian" prefWidth="130"/>
                 </columns>
             </TableView>
+
+            <Label text="BIEU DO GIA THEO THOI GIAN"
+                   style="-fx-font-weight: bold; -fx-text-fill: #7f8c8d; -fx-font-size: 11px;
+                          -fx-padding: 8 0 0 0;"/>
+            <StackPane fx:id="chartContainer" prefHeight="260" minHeight="220" maxWidth="Infinity"
+                       VBox.vgrow="NEVER"
+                       style="-fx-background-color: #fafafa; -fx-border-color: #eee;"/>
         </VBox>
 
     </HBox>

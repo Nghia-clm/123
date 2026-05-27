@@ -6,7 +6,6 @@ import com.auction.exception.UserNotFoundException;
 import com.auction.manager.AuctionManager;
 import com.auction.model.Auction;
 import com.auction.model.AuctionStatus;
-import com.auction.model.BidTransaction;
 import com.auction.observer.BidObserver;
 import com.auction.service.AuctionService;
 
@@ -114,17 +113,70 @@ public class AutoBidder implements BidObserver {
     /**
      * Thread pool để xử lý auto-bid bất đồng bộ (không block luồng gọi).
      */
-    private final ExecutorService executor =
-            Executors.newCachedThreadPool(r -> {
-                Thread t = new Thread(r, "auto-bidder");
-                t.setDaemon(true);
-                return t;
-            });
+    private final Executor executor;
 
-    private final AuctionService auctionService = new AuctionService();
-    private final AuctionManager auctionManager = AuctionManager.getInstance();
+    public interface AuctionRuntime {
+        Auction getAuction(String auctionId);
+        void addAuction(Auction auction);
+    }
 
-    private AutoBidder() {}
+    public interface BidPlacer {
+        void placeBid(String auctionId, String bidderId, double bidAmount, boolean autoBid)
+                throws AuctionClosedException, InvalidBidException, UserNotFoundException;
+    }
+
+    private static final class AuctionManagerRuntime implements AuctionRuntime {
+        private final AuctionManager auctionManager = AuctionManager.getInstance();
+
+        @Override
+        public Auction getAuction(String auctionId) {
+            return auctionManager.getAuction(auctionId);
+        }
+
+        @Override
+        public void addAuction(Auction auction) {
+            auctionManager.addAuction(auction);
+        }
+    }
+
+    private final AuctionRuntime auctionManager;
+    private final BidPlacer bidPlacer;
+    private volatile AuctionService auctionService;
+
+    private AutoBidder() {
+        this(new AuctionManagerRuntime(), (AuctionService) null, Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "auto-bidder");
+            t.setDaemon(true);
+            return t;
+        }));
+    }
+
+    public AutoBidder(AuctionRuntime auctionManager, AuctionService auctionService, Executor executor) {
+        this(auctionManager, null, auctionService, executor);
+    }
+
+    public AutoBidder(AuctionRuntime auctionManager, BidPlacer bidPlacer, Executor executor) {
+        this(auctionManager, bidPlacer, null, executor);
+    }
+
+    private AutoBidder(AuctionRuntime auctionManager, BidPlacer bidPlacer,
+                       AuctionService auctionService, Executor executor) {
+        this.auctionManager = auctionManager;
+        this.bidPlacer = bidPlacer;
+        this.auctionService = auctionService;
+        this.executor = executor;
+    }
+
+    private AuctionService getAuctionService() {
+        if (auctionService == null) {
+            synchronized (this) {
+                if (auctionService == null) {
+                    auctionService = new AuctionService();
+                }
+            }
+        }
+        return auctionService;
+    }
 
     // ── Public API ─────────────────────────────────────────────────────────
 
@@ -142,7 +194,10 @@ public class AutoBidder implements BidObserver {
         if (increment <= 0)  throw new IllegalArgumentException("increment phải dương");
 
         Auction auction = auctionManager.getAuction(auctionId);
-        if (auction == null) throw new IllegalArgumentException("Phiên đấu giá không tồn tại: " + auctionId);
+        if (auction == null) {
+            auction = getAuctionService().getAuctionById(auctionId);
+            auctionManager.addAuction(auction);
+        }
         if (auction.getStatus() == AuctionStatus.FINISHED
                 || auction.getStatus() == AuctionStatus.CANCELED) {
             throw new IllegalStateException("Phiên đấu giá đã kết thúc");
@@ -165,8 +220,12 @@ public class AutoBidder implements BidObserver {
         LOGGER.info(String.format("[AutoBidder] Registered: bidder=%s | auction=%s | maxBid=%.0f | inc=%.0f",
                 bidderId, auctionId, maxBid, increment));
 
-        // Thử kích hoạt ngay nếu người này chưa dẫn đầu
-        triggerIfNeeded(auctionId, auction.getCurrentPrice(), auction.getCurrentWinnerId());
+        // Thử kích hoạt ngay nếu người này chưa dẫn đầu.
+        // Dùng executor (async) để server kịp gửi response OK cho client TRƯỚC khi
+        // broadcast AUTO_BID được gửi đi — tránh client nhận broadcast trước response.
+        final double currentPrice = auction.getCurrentPrice();
+        final String currentWinner = auction.getCurrentWinnerId();
+        executor.execute(() -> triggerIfNeeded(auctionId, currentPrice, currentWinner));
     }
 
     /**
@@ -201,6 +260,16 @@ public class AutoBidder implements BidObserver {
         }
     }
 
+    public Optional<AutoBidEntry> getRegistration(String auctionId, String bidderId) {
+        PriorityQueue<AutoBidEntry> queue = registrations.get(auctionId);
+        if (queue == null) return Optional.empty();
+        synchronized (queue) {
+            return queue.stream()
+                    .filter(e -> e.getBidderId().equals(bidderId))
+                    .findFirst();
+        }
+    }
+
     // ── BidObserver callback ───────────────────────────────────────────────
 
     /**
@@ -209,7 +278,7 @@ public class AutoBidder implements BidObserver {
      */
     @Override
     public void onBidUpdated(String auctionId, double newPrice, String leadingBidderId) {
-        executor.submit(() -> triggerIfNeeded(auctionId, newPrice, leadingBidderId));
+        executor.execute(() -> triggerIfNeeded(auctionId, newPrice, leadingBidderId));
     }
 
     // ── Core logic ─────────────────────────────────────────────────────────
@@ -271,22 +340,14 @@ public class AutoBidder implements BidObserver {
 
             // Đặt giá tự động
             try {
-                BidTransaction tx = auctionService.placeBid(auctionId, best.getBidderId(), nextBid);
-
-                // Đánh dấu là auto-bid
-                tx.setAutoBid(true);
+                if (bidPlacer != null) {
+                    bidPlacer.placeBid(auctionId, best.getBidderId(), nextBid, true);
+                } else {
+                    getAuctionService().placeBid(auctionId, best.getBidderId(), nextBid, true);
+                }
 
                 LOGGER.info(String.format("[AutoBidder] Auto-bid placed: bidder=%s | auction=%s | amount=%.0f",
                         best.getBidderId(), auctionId, nextBid));
-
-                // Broadcast auto-bid event
-                org.json.JSONObject msg = new org.json.JSONObject();
-                msg.put("event",     "AUTO_BID");
-                msg.put("auctionId", auctionId);
-                msg.put("bidderId",  best.getBidderId());
-                msg.put("amount",    nextBid);
-                msg.put("timestamp", tx.getTimestamp().toString());
-                auctionManager.broadcastToRoom(auctionId, msg.toString());
 
             } catch (AuctionClosedException e) {
                 LOGGER.info("[AutoBidder] Auction closed during auto-bid: " + auctionId);
